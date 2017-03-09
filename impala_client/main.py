@@ -87,34 +87,31 @@ class Database:
     """ Cloudera Impala Database """
 
     def __init__(self, db_name, db_desc, cursor):
-        self._db_name = db_name
-        self._db_desc = db_desc
-        self._cursor = cursor
+        self.db_name = db_name
+        self.description = db_desc
 
-        self._tables = set()
+        self.__cursor = cursor
+        self.__tables = set()
+
         self.check_tables()
 
     @property
-    def description(self):
-        return self._db_desc
-
-    @property
     def tables(self):
-        return self._tables
+        return self.__tables
 
     def check_tables(self):
 
-        self._cursor.execute('SHOW TABLES IN %s' % self._db_name)
-        tables_list = self._cursor.fetchall()
+        self.__cursor.execute('SHOW TABLES IN %s' % self.db_name)
+        tables_list = self.__cursor.fetchall()
 
         for _table_name in tables_list:
             table_name = _table_name[0]
-            self._tables.add(table_name)
-            table = Table(self._db_name, self._cursor, table_name)
+            self.__tables.add(table_name)
+            table = Table(self.db_name, self.__cursor, table_name)
             self.__setattr__(table_name, table)
 
     def __getitem__(self, name):
-        if hasattr(self, name):
+        if hasattr(self, name) and not name.startswith('__'):
             return self.__getattribute__(name)
 
 
@@ -122,32 +119,33 @@ class Table:
     """ Table inside some database in Cloudera Impala """
 
     def __init__(self, db_name, cursor, table_name):
-        self._db_name = db_name
-        self._cursor = cursor
-        self._table_name = table_name
-        self._loaded = False
+        self.db_name = db_name
+        self.table_name = table_name
+
+        self.__cursor = cursor
+        self.loaded = False
 
     def describe(self, reload=False):
-        if reload or (not self._loaded):
+        if reload or (not self.loaded):
             self.check_cloumns()
 
-        return {i: self[i] for i in self._columns}
+        return {i: self[i] for i in self.__columns}
 
     def check_cloumns(self):
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self._db_name, self._table_name)
-        self._columns = set()
+        self.__columns = set()
 
-        self._cursor.execute('DESCRIBE %s' % _table_name)
-        table_res = self._cursor.fetchall()
+        self.__cursor.execute('DESCRIBE %s' % _table_name)
+        table_res = self.__cursor.fetchall()
 
         for col_name, col_type, _ in table_res:
-            self._columns.add(col_name)
+            self.__columns.add(col_name)
             self.__setattr__(col_name, col_type)
 
-        self._loaded = True
+        self.loaded = True
 
     def __getitem__(self, name):
-        if hasattr(self, name):
+        if hasattr(self, name) and not name.startswith('__'):
             return self.__getattribute__(name)
