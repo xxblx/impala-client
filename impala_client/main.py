@@ -134,7 +134,7 @@ class Table:
     def check_cloumns(self):
         """ Get actual table's description """
 
-        _table_name = '%s.%s' % (self._db_name, self._table_name)
+        _table_name = '%s.%s' % (self.db_name, self.table_name)
         self.__columns = set()
 
         self.__cursor.execute('DESCRIBE %s' % _table_name)
