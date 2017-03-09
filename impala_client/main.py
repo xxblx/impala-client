@@ -91,13 +91,9 @@ class Database:
         self.description = db_desc
 
         self.__cursor = cursor
-        self.__tables = set()
+        self.tables = set()
 
         self.check_tables()
-
-    @property
-    def tables(self):
-        return self.__tables
 
     def check_tables(self):
 
@@ -106,7 +102,7 @@ class Database:
 
         for _table_name in tables_list:
             table_name = _table_name[0]
-            self.__tables.add(table_name)
+            self.tables.add(table_name)
             table = Table(self.db_name, self.__cursor, table_name)
             self.__setattr__(table_name, table)
 
@@ -129,19 +125,19 @@ class Table:
         if reload or (not self.loaded):
             self.check_cloumns()
 
-        return {i: self[i] for i in self.__columns}
+        return {i: self[i] for i in self.columns}
 
     def check_cloumns(self):
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self.db_name, self.table_name)
-        self.__columns = set()
+        self.columns = set()
 
         self.__cursor.execute('DESCRIBE %s' % _table_name)
         table_res = self.__cursor.fetchall()
 
         for col_name, col_type, _ in table_res:
-            self.__columns.add(col_name)
+            self.columns.add(col_name)
             self.__setattr__(col_name, col_type)
 
         self.loaded = True
