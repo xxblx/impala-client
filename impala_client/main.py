@@ -29,6 +29,7 @@ class ImpalaClient:
         dbs_res = self.cursor.fetchall()
 
         for db_name, db_desc in dbs_res:
+            # Add database object as client attribute
             self.__setattr__(db_name, Database(db_name, db_desc, self.cursor))
             self.dbs.add(db_name)
 
@@ -38,11 +39,18 @@ class ImpalaClient:
         # TODO: exceptions processing
         self.cursor.execute(sql, parameters)
 
-    def get_list(self, sql, parameters=None):
+    def get_list(self, sql, parameters=None, header=None):
         """ Get results as python list with tuples """
 
         self.execute(sql, parameters)
-        return self.cursor.fetchall()
+        if header is None:
+            results = self.cursor.fetchall()
+        else:
+            # Get columns names from cursor description
+            cols = tuple(i[0] for i in self.cursor.description)
+            results = [cols] + self.cursor.fetchall()
+
+        return results
 
     def get_df(self, sql, parameters=None):
         """ Get results as pandas dataframe """
@@ -50,7 +58,7 @@ class ImpalaClient:
         self.execute(sql, parameters)
         return as_pandas(self.cursor)
 
-    def get_csv(self, sql, parameters=None, fpath=None):
+    def get_csv(self, sql, parameters=None, header=None, fpath=None):
         """ Get results as csv file """
 
         self.execute(sql, parameters)
@@ -59,9 +67,14 @@ class ImpalaClient:
             fpath = csv_file.name
         else:
             csv_file = open(fpath, 'w')
-        writer = csv.writer(csv_file)
 
         with csv_file:
+            writer = csv.writer(csv_file)
+
+            if header:
+                writer.writerow([i[0] for i in self.cursor.description])
+
+            # Write 1000 lines per iteration into file
             block = self.cursor.fetchmany(1000)
             while block:
                 writer.writerows(block)
