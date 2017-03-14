@@ -2,6 +2,7 @@
 
 import csv
 from datetime import datetime
+from collections import OrderedDict
 from tempfile import NamedTemporaryFile
 
 from impala.util import as_pandas
@@ -134,7 +135,7 @@ class Table:
         if reload or (not self.loaded):
             self.check_cloumns()
 
-        return {i: self[i] for i in self.columns}
+        return OrderedDict([(i, self[i]) for i in self.columns])
 
     def check_cloumns(self):
         """ Get actual table's description """
