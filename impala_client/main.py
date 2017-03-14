@@ -35,7 +35,7 @@ class ImpalaClient:
 
         self.dbs = tuple(dbs)
 
-    def execute(self, sql, parameters):
+    def execute(self, sql, parameters=None):
         """ Run query """
 
         # TODO: exceptions processing
