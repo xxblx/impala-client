@@ -130,6 +130,7 @@ class Table:
 
         self.__cursor = cursor
         self.loaded = False
+        self.columns = None
 
     def describe(self, reload=False):
         if reload or (not self.loaded):
