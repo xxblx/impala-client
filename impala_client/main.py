@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import csv
+from datetime import datetime
 from tempfile import NamedTemporaryFile
 
 from impala.util import as_pandas
@@ -65,7 +66,11 @@ class ImpalaClient:
 
         self.execute(sql, parameters)
         if fpath is None:
-            csv_file = NamedTemporaryFile('w', suffix='.csv', delete=False)
+            str_now = datetime.strftime(datetime.now(), '%Y%m%d_%H%M%S')
+            prefix = 'impala_%s_' % str_now
+
+            csv_file = NamedTemporaryFile('w', prefix=prefix, suffix='.csv',
+                                          delete=False)
             fpath = csv_file.name
         else:
             csv_file = open(fpath, 'w')
