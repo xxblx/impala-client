@@ -13,7 +13,6 @@ class ImpalaClient:
 
         self.connect_params = connect_params
         self.init_connect()
-        self.dbs = set()
         self.check_dbs()
 
     def init_connect(self):
@@ -27,11 +26,14 @@ class ImpalaClient:
 
         self.cursor.execute('SHOW DATABASES;')
         dbs_res = self.cursor.fetchall()
+        dbs = []
 
         for db_name, db_desc in dbs_res:
             # Add database object as client attribute
             self.__setattr__(db_name, Database(db_name, db_desc, self.cursor))
-            self.dbs.add(db_name)
+            dbs.append(db_name)
+
+        self.dbs = tuple(dbs)
 
     def execute(self, sql, parameters):
         """ Run query """
@@ -91,7 +93,6 @@ class Database:
         self.description = db_desc
 
         self.__cursor = cursor
-        self.tables = set()
 
         self.check_tables()
 
@@ -99,12 +100,15 @@ class Database:
 
         self.__cursor.execute('SHOW TABLES IN %s' % self.db_name)
         tables_list = self.__cursor.fetchall()
+        tables = []
 
         for _table_name in tables_list:
             table_name = _table_name[0]
-            self.tables.add(table_name)
+            tables.append(table_name)
             table = Table(self.db_name, self.__cursor, table_name)
             self.__setattr__(table_name, table)
+
+        self.tables = tuple(tables)
 
     def __getitem__(self, name):
         if hasattr(self, name) and not name.startswith('__'):
@@ -131,15 +135,16 @@ class Table:
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self.db_name, self.table_name)
-        self.columns = set()
 
         self.__cursor.execute('DESCRIBE %s' % _table_name)
         table_res = self.__cursor.fetchall()
+        columns = []
 
         for col_name, col_type, _ in table_res:
-            self.columns.add(col_name)
+            columns.append(col_name)
             self.__setattr__(col_name, col_type)
 
+        self.columns = tuple(columns)
         self.loaded = True
 
     def __getitem__(self, name):
