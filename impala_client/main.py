@@ -16,17 +16,20 @@ from impala.dbapi import connect as impala_connect
 
 class ImpalaClient:
 
-    def __init__(self, connect_params):
+    def __init__(self, connect_params=None):
 
         self.connect_params = connect_params
-        self.init_connect()
-        self.check_dbs()
+        if connect_params is not None:
+            self.init_impala_connect()
+            self.check_dbs()
 
-    def init_connect(self):
+        # TODO: sqlite connection for storing queries local log
+
+    def init_impala_connect(self):
         """ Connect to Cloudera Impala """
 
-        self.connect = impala_connect(**self.connect_params)
-        self.cursor = None
+        self.impala_connection = impala_connect(**self.connect_params)
+        self.impala_cursor = None
 
     def __execute(fn):
         """ Decorator for sql queries execution """
@@ -34,15 +37,15 @@ class ImpalaClient:
         @wraps(fn)
         def wrapper(self, sql, **kwargs):
 
-            if self.cursor and not self.cursor._closed:
-                self.cursor.close()
+            if self.impala_cursor and not self.impala_cursor._closed:
+                self.impala_cursor.close()
 
-            self.cursor = self.connect.cursor()
+            self.impala_cursor = self.impala_connection.cursor()
             # TODO: processing for impala errors?
-            self.cursor.execute(sql)
+            self.impala_cursor.execute(sql)
 
             results = fn(self, sql, **kwargs)
-            self.cursor.close()
+            self.impala_cursor.close()
 
             return results
         return wrapper
@@ -58,11 +61,11 @@ class ImpalaClient:
         """ Get results as python list with tuples """
 
         if header is None:
-            results = self.cursor.fetchall()
+            results = self.impala_cursor.fetchall()
         else:
             # Get columns names from cursor description
-            cols = tuple(i[0] for i in self.cursor.description)
-            results = [cols] + self.cursor.fetchall()
+            cols = tuple(i[0] for i in self.impala_cursor.description)
+            results = [cols] + self.impala_cursor.fetchall()
 
         return results
 
@@ -70,7 +73,7 @@ class ImpalaClient:
     def get_df(self, sql, parameters=None):
         """ Get results as pandas dataframe """
 
-        return as_pandas(self.cursor)
+        return as_pandas(self.impala_cursor)
 
     @__execute
     def get_csv(self, sql, parameters=None, header=None, fpath=None, gz=None):
@@ -95,13 +98,13 @@ class ImpalaClient:
             writer = csv.writer(res_file)
 
             if header:
-                writer.writerow([i[0] for i in self.cursor.description])
+                writer.writerow([i[0] for i in self.impala_cursor.description])
 
             # Write 1000 lines per iteration into file
-            block = self.cursor.fetchmany(1000)
+            block = self.impala_cursor.fetchmany(1000)
             while block:
                 writer.writerows(block)
-                block = self.cursor.fetchmany(1000)
+                block = self.impala_cursor.fetchmany(1000)
 
         return fpath
 
@@ -118,7 +121,6 @@ class ImpalaClient:
             dbs.append(db_name)
 
         self.dbs = tuple(dbs)
-        self.cursor.close()
 
 
 class Database:
