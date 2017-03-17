@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import csv
+import gzip
+import os.path
+import tempfile
+
+from uuid import uuid4
 from functools import wraps
 from datetime import datetime
 from collections import OrderedDict
-from tempfile import NamedTemporaryFile
 
 from impala.util import as_pandas
 from impala.dbapi import connect as impala_connect
@@ -69,21 +73,26 @@ class ImpalaClient:
         return as_pandas(self.cursor)
 
     @__execute
-    def get_csv(self, sql, parameters=None, header=None, fpath=None):
+    def get_csv(self, sql, parameters=None, header=None, fpath=None, gz=None):
         """ Get results as csv file """
 
         if fpath is None:
+            if gz:
+                ext = 'csv.gz'
+            else:
+                ext = 'csv'
+
             str_now = datetime.strftime(datetime.now(), '%Y%m%d_%H%M%S')
-            prefix = 'impala_%s_' % str_now
+            fname = 'impala_%s_%s.%s' % (str_now, uuid4().hex, ext)
+            fpath = os.path.join(tempfile.gettempdir(), fname)
 
-            csv_file = NamedTemporaryFile('w', prefix=prefix, suffix='.csv',
-                                          delete=False)
-            fpath = csv_file.name
+        if gz:
+            res_file = gzip.open(fpath, 'wt')
         else:
-            csv_file = open(fpath, 'w')
+            res_file = open(fpath, 'w')
 
-        with csv_file:
-            writer = csv.writer(csv_file)
+        with res_file:
+            writer = csv.writer(res_file)
 
             if header:
                 writer.writerow([i[0] for i in self.cursor.description])
