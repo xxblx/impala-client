@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import csv
+from functools import wraps
 from datetime import datetime
 from collections import OrderedDict
 from tempfile import NamedTemporaryFile
-from functools import wraps
 
 from impala.util import as_pandas
 from impala.dbapi import connect as impala_connect
@@ -23,21 +23,6 @@ class ImpalaClient:
 
         self.connect = impala_connect(**self.connect_params)
         self.cursor = None
-
-    def check_dbs(self):
-        """ Get actual information about exists databases """
-
-        dbs_res = self.get_list('SHOW DATABASES;')
-        dbs = []
-
-        for db_name, db_desc in dbs_res:
-            # Add database object as client attribute
-            db = Database(self, db_name, db_desc)
-            self.__setattr__(db_name, db)
-            dbs.append(db_name)
-
-        self.dbs = tuple(dbs)
-        self.cursor.close()
 
     def __execute(fn):
         """ Decorator for sql queries execution """
@@ -111,6 +96,21 @@ class ImpalaClient:
 
         return fpath
 
+    def check_dbs(self):
+        """ Get actual information about exists databases """
+
+        dbs_res = self.get_list('SHOW DATABASES;')
+        dbs = []
+
+        for db_name, db_desc in dbs_res:
+            # Add database object as client attribute
+            db = Database(self, db_name, db_desc)
+            self.__setattr__(db_name, db)
+            dbs.append(db_name)
+
+        self.dbs = tuple(dbs)
+        self.cursor.close()
+
 
 class Database:
     """ Cloudera Impala Database """
@@ -164,6 +164,7 @@ class Table:
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self.db_name, self.table_name)
+        # Possible to replace with cursor.get_databases
         table_res = self.get_list('DESCRIBE %s' % _table_name)
         columns = []
 
