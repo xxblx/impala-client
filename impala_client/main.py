@@ -173,7 +173,7 @@ class Table:
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self.db_name, self.table_name)
-        # Possible to replace with cursor.get_databases
+        # Possible to replace with cursor.get_tables
         table_res = self.get_list('DESCRIBE %s' % _table_name)
         columns = []
 
