@@ -60,7 +60,7 @@ class ImpalaClient:
 
     @__execute
     def execute(self, sql, parameters=None):
-        """ Run query """
+        """ Empty method for single query execution without fetch """
 
         pass
 
