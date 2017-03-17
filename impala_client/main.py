@@ -4,6 +4,7 @@ import csv
 from datetime import datetime
 from collections import OrderedDict
 from tempfile import NamedTemporaryFile
+from functools import wraps
 
 from impala.util import as_pandas
 from impala.dbapi import connect as impala_connect
@@ -21,32 +22,52 @@ class ImpalaClient:
         """ Connect to Cloudera Impala """
 
         self.connect = impala_connect(**self.connect_params)
-        self.cursor = self.connect.cursor()
+        self.cursor = None
 
     def check_dbs(self):
         """ Get actual information about exists databases """
 
-        self.cursor.execute('SHOW DATABASES;')
-        dbs_res = self.cursor.fetchall()
+        dbs_res = self.get_list('SHOW DATABASES;')
         dbs = []
 
         for db_name, db_desc in dbs_res:
             # Add database object as client attribute
-            self.__setattr__(db_name, Database(db_name, db_desc, self.cursor))
+            db = Database(self, db_name, db_desc)
+            self.__setattr__(db_name, db)
             dbs.append(db_name)
 
         self.dbs = tuple(dbs)
+        self.cursor.close()
 
+    def __execute(fn):
+        """ Decorator for sql queries execution """
+
+        @wraps(fn)
+        def wrapper(self, sql, **kwargs):
+
+            if self.cursor and not self.cursor._closed:
+                self.cursor.close()
+
+            self.cursor = self.connect.cursor()
+            # TODO: processing for impala errors?
+            self.cursor.execute(sql)
+
+            results = fn(self, sql, **kwargs)
+            self.cursor.close()
+
+            return results
+        return wrapper
+
+    @__execute
     def execute(self, sql, parameters=None):
         """ Run query """
 
-        # TODO: exceptions processing
-        self.cursor.execute(sql, parameters)
+        pass
 
+    @__execute
     def get_list(self, sql, parameters=None, header=None):
         """ Get results as python list with tuples """
 
-        self.execute(sql, parameters)
         if header is None:
             results = self.cursor.fetchall()
         else:
@@ -56,16 +77,16 @@ class ImpalaClient:
 
         return results
 
+    @__execute
     def get_df(self, sql, parameters=None):
         """ Get results as pandas dataframe """
 
-        self.execute(sql, parameters)
         return as_pandas(self.cursor)
 
+    @__execute
     def get_csv(self, sql, parameters=None, header=None, fpath=None):
         """ Get results as csv file """
 
-        self.execute(sql, parameters)
         if fpath is None:
             str_now = datetime.strftime(datetime.now(), '%Y%m%d_%H%M%S')
             prefix = 'impala_%s_' % str_now
@@ -94,24 +115,23 @@ class ImpalaClient:
 class Database:
     """ Cloudera Impala Database """
 
-    def __init__(self, db_name, db_desc, cursor):
+    def __init__(self, client, db_name, db_desc):
         self.db_name = db_name
         self.description = db_desc
-
-        self.__cursor = cursor
+        self.__client = client
+        self.get_list = self.__client.get_list
 
         self.check_tables()
 
     def check_tables(self):
 
-        self.__cursor.execute('SHOW TABLES IN %s' % self.db_name)
-        tables_list = self.__cursor.fetchall()
+        tables_list = self.get_list('SHOW TABLES IN %s' % self.db_name)
         tables = []
 
         for _table_name in tables_list:
             table_name = _table_name[0]
             tables.append(table_name)
-            table = Table(self.db_name, self.__cursor, table_name)
+            table = Table(self.__client, self.db_name, table_name)
             self.__setattr__(table_name, table)
 
         self.tables = tuple(tables)
@@ -124,11 +144,13 @@ class Database:
 class Table:
     """ Table inside some database in Cloudera Impala """
 
-    def __init__(self, db_name, cursor, table_name):
+    def __init__(self, client, db_name, table_name):
         self.db_name = db_name
         self.table_name = table_name
 
-        self.__cursor = cursor
+        self.__client = client
+        self.get_list = self.__client.get_list
+
         self.loaded = False
         self.columns = None
 
@@ -142,9 +164,7 @@ class Table:
         """ Get actual table's description """
 
         _table_name = '%s.%s' % (self.db_name, self.table_name)
-
-        self.__cursor.execute('DESCRIBE %s' % _table_name)
-        table_res = self.__cursor.fetchall()
+        table_res = self.get_list('DESCRIBE %s' % _table_name)
         columns = []
 
         for col_name, col_type, _ in table_res:
